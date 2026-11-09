@@ -23,7 +23,27 @@ jobs:
         run: npm ci
 
       - name: Dev server (npm run dev)
-        run: npm run dev
+        run: |
+          npm run dev > /tmp/dev.log 2>&1 &
+          echo $! > /tmp/dev.pid
+
+          TIMEOUT=60
+          INTERVAL=2
+          ELAPSED=0
+          URL=http://localhost:5173
+
+          until curl --silent --fail --output /dev/null "$URL"; do
+            if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+              echo "::error::Dev server did not start within ${TIMEOUT}s"
+              echo "----- /tmp/dev.log -----"
+              cat /tmp/dev.log
+              exit 1
+            fi
+            sleep "$INTERVAL"
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "Server is ready!"
 
       - name: Build
         run: npm run build
