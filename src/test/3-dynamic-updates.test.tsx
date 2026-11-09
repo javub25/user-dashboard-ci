@@ -1,21 +1,52 @@
-import { within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { COUNTRIES } from '@/data/survey'
-import { chart, dashboard, readChartCounts, renderApp } from './helpers'
+import { getByRole, getContainer, readChartCounts, renderApp, userClickInteraction } from './helpers'
 
 describe('3) Dynamic chart updates', () => {
-  it.each(COUNTRIES)('refreshes the chart with the latest $label dataset', async ({ id, label }) => {
-    const { user, seed } = renderApp()
-    // Start from a different country so a stale/cached chart would be detected.
+  describe.each(COUNTRIES)('switching to $label', ({ id, label }) => {
     const start = COUNTRIES.find((c) => c.id !== id)!
-    await user.click(within(dashboard()).getByRole('radio', { name: start.label }))
-    const before = readChartCounts()
-    expect(before).toEqual(seed[start.id])
 
-    await user.click(within(dashboard()).getByRole('radio', { name: label }))
+    const switchCountry = async () => 
+      {
+      const { user, seed } = renderApp();
+      const dashboard = getContainer('dashboard');
+      const chart = getContainer('chart');
 
-    expect(chart()).toHaveAttribute('data-country', id)
-    expect(readChartCounts()).toEqual(seed[id])
-    expect(readChartCounts()).not.toEqual(before)
+      await userClickInteraction(user, 'radio', start.label, dashboard)
+      const before = readChartCounts()
+      await userClickInteraction(user, 'radio', label, dashboard)
+
+      return { seed, before, dashboard , chart }
+    }
+
+    it(`tags the chart with ${id}`, async () => {
+      const { chart } = await switchCountry();
+
+      expect(chart).toHaveAttribute('data-country', id)
+    })
+
+    it(`renders the ${label} dataset`, async () => {
+      const { seed } = await switchCountry()
+
+      expect(readChartCounts()).toEqual(seed[id])
+    })
+
+    it(`replaces the ${start.label} counts`, async () => {
+      const { before } = await switchCountry()
+
+      expect(readChartCounts()).not.toEqual(before)
+    })
+
+    it(`checks the ${label} radio`, async () => {
+      const { dashboard } = await switchCountry()
+
+      expect(getByRole('radio', label, dashboard)).toBeChecked()
+    })
+
+    it(`unchecks the ${start.label} radio`, async () => {
+      const { dashboard } = await switchCountry()
+
+      expect(getByRole('radio', start.label, dashboard)).not.toBeChecked()
+    })
   })
 })
